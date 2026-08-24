@@ -7,5 +7,25 @@ jobs:
   signin:
     runs-on: ubuntu-latest
     steps:
-      - name: 测试步骤
-        run: echo "workflow 正常触发"
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 安装 Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.21'
+
+      - name: 写入账号凭证
+        env:
+          TRAE_AUTH: ${{ secrets.TRAE_AUTH_1 }}
+        run: |
+          mkdir -p auths
+          printf '%s' "$TRAE_AUTH" > auths/trae-1.json
+
+      - name: 执行签到并推送通知
+        env:
+          DINGTALK_WEBHOOK: ${{ secrets.DINGTALK_WEBHOOK }}
+          DINGTALK_SECRET: ${{ secrets.DINGTALK_SECRET }}
+        run: |
+          chmod +x signin.sh
+          bash signin.sh auths
