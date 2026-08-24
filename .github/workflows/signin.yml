@@ -23,22 +23,8 @@ jobs:
           printf '%s' "$TRAE_AUTH" > auths/trae-1.json
 
       - name: 抓取 usage 字段（诊断用，待移除）
-        env:
-          AUTH: ${{ secrets.TRAE_AUTH_1 }}
         run: |
-          TOKEN=$(python3 -c "import os,json;d=json.loads(os.environ['AUTH']);print(d['auth']['accessToken'])")
-          curl -s -X POST "https://api.trae.cn/trae/api/v2/pay/ide_user_ent_usage" \
-            -H 'Content-Type: application/json' -H 'Accept: application/json' \
-            -H 'User-Agent: Trae/0.1.43' -H 'X-User-Region: CN' \
-            -H "Authorization: Cloud-IDE-JWT $TOKEN" -d '{}' \
-            | python3 -c "
-import json,sys,base64
-d=json.load(sys.stdin)
-print('top_keys:', ','.join(d.keys()))
-for i,p in enumerate(d.get('user_entitlement_pack_list',[]),1):
-    u=p.get('usage') or {}
-    print('pack%d group=%s status=%s limit=%s usage_b64=%s'%(i,p.get('group_name'),p.get('status'),(p.get('entitlement_base_info') or {}).get('quota',{}).get('credits_limit'),base64.b64encode(json.dumps(u).encode()).decode()))
-"
+          python3 -c 'import json,base64 as b,urllib.request as u;d=json.load(open("auths/trae-1.json"));tok=d["auth"]["accessToken"];r=json.loads(u.urlopen(u.Request("https://api.trae.cn/trae/api/v2/pay/ide_user_ent_usage",data=b"{}",method="POST",headers={"Content-Type":"application/json","Accept":"application/json","User-Agent":"Trae/0.1.43","X-User-Region":"CN","Authorization":"Cloud-IDE-JWT "+tok}),timeout=20).read().decode());print("top_keys:","|".join(r.keys()));[print("pack%d group=%s status=%s limit=%s usage_b64=%s"%(i,p.get("group_name"),p.get("status"),(p.get("entitlement_base_info") or {}).get("quota",{}).get("credits_limit"),b.b64encode(json.dumps(p.get("usage") or {},ensure_ascii=False).encode()).decode())) for i,p in enumerate(r.get("user_entitlement_pack_list") or [],1)]'
 
       - name: 执行签到并推送通知
         env:
