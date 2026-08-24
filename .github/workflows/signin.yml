@@ -3,3 +3,9 @@ on:
   schedule:
     - cron: '0 0 * * *'
   workflow_dispatch: {}
+jobs:
+  signin:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 测试步骤
+        run: echo "workflow 正常触发"
