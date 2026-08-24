@@ -1,0 +1,4 @@
+# 统一使用 LF 行尾（兼容 GitHub Actions YAML 解析）
+* text=auto eol=lf
+*.sh text eol=lf
+.github/workflows/*.yml text eol=lf

@@ -11,3 +11,7 @@ scheduler
 # IDE
 .idea/
 .vscode/
+
+# 本地 gh CLI 工具与凭据（勿提交）
+.gh-cli/
+
