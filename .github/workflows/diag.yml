@@ -10,14 +10,29 @@ jobs:
           AUTH: ${{ secrets.TRAE_AUTH_1 }}
         run: |
           TOKEN=$(python3 -c "import os,json;d=json.loads(os.environ['AUTH']);print(d['auth']['accessToken'])")
-          echo "===== ide_user_ent_usage ====="
+          echo "===== ide_user_ent_usage (结构诊断) ====="
           curl -s -X POST "https://api.trae.cn/trae/api/v2/pay/ide_user_ent_usage" \
             -H 'Content-Type: application/json' \
             -H 'Accept: application/json' \
             -H 'User-Agent: Trae/0.1.43' \
             -H 'X-User-Region: CN' \
             -H "Authorization: Cloud-IDE-JWT $TOKEN" \
-            -d '{}' | python3 -m json.tool
+            -d '{}' | python3 -c "
+import json,sys
+d=json.load(sys.stdin)
+n=0
+for p in d.get('user_entitlement_pack_list',[]):
+    n+=1
+    limit=(p.get('entitlement_base_info') or {}).get('quota',{}).get('credits_limit')
+    u=p.get('usage')
+    if isinstance(u,dict):
+        info=' '.join('{}={}'.format(k,v) for k,v in u.items() if not isinstance(v,(dict,list)))
+    else:
+        info='type={}'.format(type(u).__name__)
+    print('pack{} group={} limit={}'.format(n,p.get('group_name'),limit))
+    print('    usage: {}'.format(info))
+print('total_packs=',n, 'top_keys=', list(d.keys()))
+"
           echo "===== checkin_credits/status ====="
           curl -s -X POST "https://api.trae.cn/trae/api/v2/ug/checkin_credits/status" \
             -H 'Content-Type: application/json' \
