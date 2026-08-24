@@ -150,26 +150,35 @@ func (c *Client) CheckinClaim(a *auth.Auth) error {
 	return err
 }
 
+// ExpiringPack 即将过期的权益包信息。
+type ExpiringPack struct {
+	Desc     string  // 权益名称（display_desc，如"老用户福利"）
+	Remain   float64 // 该包剩余积分
+	ExpireAt int64   // 过期时间戳（秒）
+}
+
 // UserEntUsage 查询剩余积分（保留两位小数），口径与官方 UI「总可用积分」一致。
+// 同时返回 7 天内将过期且仍有剩余积分的权益包列表（用于过期提醒）。
 // 每个权益包：剩余 = entitlement_base_info.quota.credits_limit（额度上限）
 //            − usage.credits_amount（已消耗，缺失视为 0）。
 // 例：UI「503.97 / 2,000」即 2000 − 已消耗 1496.03。
 // 跳过已过期（expire_time 已过）与未生效（start_time 在未来）的包，
 // 单包剩余为负按 0 计，最后统一四舍五入到两位小数。
-func (c *Client) UserEntUsage(a *auth.Auth) (remain float64, err error) {
+func (c *Client) UserEntUsage(a *auth.Auth) (remain float64, expiring []ExpiringPack, err error) {
 	req, err := http.NewRequest(http.MethodPost, UgHost+EpEntUsage, bytes.NewReader([]byte("{}")))
 	if err != nil {
-		return 0, err
+		return 0, nil, err
 	}
 	ugHeaders(req, a)
 	data, err := c.doJSON(req)
 	if err != nil {
-		return 0, err
+		return 0, nil, err
 	}
 	var resp struct {
 		UserEntitlementPackList []struct {
-			ExpireTime int64 `json:"expire_time"`
-			Usage      struct {
+			DisplayDesc string `json:"display_desc"`
+			ExpireTime  int64  `json:"expire_time"`
+			Usage       struct {
 				CreditsAmount float64 `json:"credits_amount"`
 			} `json:"usage"`
 			EntitlementBaseInfo struct {
@@ -181,10 +190,11 @@ func (c *Client) UserEntUsage(a *auth.Auth) (remain float64, err error) {
 		} `json:"user_entitlement_pack_list"`
 	}
 	if err := json.Unmarshal(data, &resp); err != nil {
-		return 0, fmt.Errorf("ent usage parse: %w", err)
+		return 0, nil, fmt.Errorf("ent usage parse: %w", err)
 	}
 	now := time.Now().Unix()
 	total := 0.0
+	weekLater := now + 7*86400
 	for _, p := range resp.UserEntitlementPackList {
 		// 已过期的权益包不计入
 		if p.ExpireTime > 0 && p.ExpireTime <= now {
@@ -197,9 +207,17 @@ func (c *Client) UserEntUsage(a *auth.Auth) (remain float64, err error) {
 		left := p.EntitlementBaseInfo.Quota.CreditsLimit - p.Usage.CreditsAmount
 		if left > 0 {
 			total += left
+			// 7 天内将过期且仍有剩余 → 加入提醒列表
+			if p.ExpireTime > 0 && p.ExpireTime <= weekLater {
+				expiring = append(expiring, ExpiringPack{
+					Desc:     p.DisplayDesc,
+					Remain:   left,
+					ExpireAt: p.ExpireTime,
+				})
+			}
 		}
 	}
-	return math.Round(total*100) / 100, nil
+	return math.Round(total*100) / 100, expiring, nil
 }
 
 func ugHeaders(req *http.Request, a *auth.Auth) {

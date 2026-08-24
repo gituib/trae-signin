@@ -15,13 +15,14 @@ import (
 )
 
 type row struct {
-	file   string
-	uid    string
-	nick   string
-	status string
-	detail string
-	remain float64
-	hasRem bool
+	file     string
+	uid      string
+	nick     string
+	status   string
+	detail   string
+	remain   float64
+	hasRem   bool
+	expiring []upstream.ExpiringPack
 }
 
 func main() {
@@ -106,9 +107,9 @@ func main() {
 			}
 		}
 
-		// 查积分
-		if remain, qerr := up.UserEntUsage(a); qerr == nil {
-			r.remain, r.hasRem = remain, true
+		// 查积分（同时获取 7 天内将过期的权益包）
+		if remain, expiring, qerr := up.UserEntUsage(a); qerr == nil {
+			r.remain, r.hasRem, r.expiring = remain, true, expiring
 		}
 		rows = append(rows, r)
 	}
@@ -129,6 +130,15 @@ func main() {
 	fmt.Println("└──────────────────────────────────────┴───────────────┴──────────────┴──────────┴──────────────────────────────────────┘")
 	fmt.Println()
 	fmt.Printf("📊 总计=%d  签到成功=%d  已签=%d  失败=%d\n", len(rows), okN, alreadyN, failN)
+
+	// 输出 7 天内将过期的积分包（格式化标记行，供 signin.sh 解析进通知）
+	for _, r := range rows {
+		for _, p := range r.expiring {
+			fmt.Printf("EXPIRE_HINT|%s|%s|%.2f|%s\n",
+				trunc(r.nick, 13), p.Desc, p.Remain,
+				time.Unix(p.ExpireAt, 0).Format("2006-01-02 15:04"))
+		}
+	}
 }
 
 func isAlready(msg string) bool {

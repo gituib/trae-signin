@@ -62,6 +62,23 @@ ${status_cn} ｜ 💰 ${credits_fmt}
     fi
 done <<< "$SIGNIN_OUTPUT"
 
+# 提取 7 天内将过期的积分包（EXPIRE_HINT|昵称|权益名|剩余|到期时间）
+EXPIRING=""
+EXPIRING_MD=""
+while IFS= read -r line; do
+    case "$line" in
+        EXPIRE_HINT\|*)
+            IFS='|' read -r _ e_nick e_desc e_remain e_time <<< "$line"
+            e_remain_fmt=$(fmt_credits "$e_remain")
+            EXPIRING="${EXPIRING}⏰ ${e_nick} 的「${e_desc}」剩余 ${e_remain_fmt}，${e_time} 到期
+"
+            EXPIRING_MD="${EXPIRING_MD}> ⏰ ${e_nick} 的「${e_desc}」剩余 **${e_remain_fmt}**，${e_time} 到期
+
+"
+            ;;
+    esac
+done <<< "$SIGNIN_OUTPUT"
+
 # 构建 Bark 推送内容
 TITLE="TRAE 签到"
 if [ "$SIGNIN_EXIT" -eq 0 ]; then
@@ -82,7 +99,9 @@ SUMMARY="📊 账号 ${TOTAL} ｜ ✅ 成功 ${OK} ｜ 🟡 已签 ${ALREADY} �
 
 BODY="${NOW_CN}
 ${SUMMARY}
-
+${EXPIRING:+
+⚠️ 积分即将过期
+${EXPIRING}}
 ${ACCOUNTS}"
 
 # 发送 Bark 通知（经环境变量传值并剔除非法 surrogate，避免含 emoji 昵称触发 UnicodeEncodeError）
@@ -92,13 +111,16 @@ echo "📲 Bark 通知已发送"
 
 # 发送钉钉通知（配置了 DINGTALK_WEBHOOK 时启用）
 if [ -n "$DINGTALK_WEBHOOK" ]; then
-    # 构造钉钉 markdown 消息内容（真实换行）
+    # 构造钉钉 markdown 消息内容（真实换行；有过期项时插入提醒区块）
     DING_BODY="### ${TITLE}
 
 **🕒 ${NOW_CN}**
 
 > ${SUMMARY}
+${EXPIRING_MD:+
+**⚠️ 积分即将过期**
 
+${EXPIRING_MD}}
 **👤 账号明细**
 
 ${ACCOUNTS_MD}"
