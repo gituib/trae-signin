@@ -50,8 +50,8 @@ fi
 
 BODY="总计${TOTAL} | 成功${OK} | 已签${ALREADY} | 失败${FAIL}\n${ACCOUNTS}"
 
-# 发送 Bark 通知
-curl -s -X POST "$BARK_URL/$(python3 -c "import urllib.parse; print(urllib.parse.quote('$TITLE'))")/$(python3 -c "import urllib.parse; print(urllib.parse.quote('$BODY'))")" > /dev/null 2>&1 || true
+# 发送 Bark 通知（经环境变量传值并剔除非法 surrogate，避免含 emoji 昵称触发 UnicodeEncodeError）
+curl -s -X POST "$BARK_URL/$(TITLE="$TITLE" python3 -c "import os,urllib.parse; s=os.environ['TITLE'].encode('utf-8','replace').decode('utf-8'); print(urllib.parse.quote(s, safe=''))")/$(BODY="$BODY" python3 -c "import os,urllib.parse; s=os.environ['BODY'].encode('utf-8','replace').decode('utf-8'); print(urllib.parse.quote(s, safe=''))")" > /dev/null 2>&1 || true
 
 echo "📲 Bark 通知已发送"
 
@@ -76,7 +76,7 @@ PYEOF
     # 发送钉钉消息
     curl -s -X POST "${DINGTALK_WEBHOOK}${DING_PARAMS}" \
         -H 'Content-Type: application/json' \
-        -d "$(DING_BODY="$DING_BODY" python3 -c "import json,os; print(json.dumps({'msgtype':'markdown','markdown':{'title':'TRAE 签到','text':os.environ['DING_BODY']}}, ensure_ascii=False))")" \
+        -d "$(DING_BODY="$DING_BODY" python3 -c "import json,os; s=os.environ['DING_BODY'].encode('utf-8','replace').decode('utf-8'); print(json.dumps({'msgtype':'markdown','markdown':{'title':'TRAE 签到','text':s}}, ensure_ascii=False))")" \
         > /dev/null 2>&1 || true
     echo "📮 钉钉通知已发送"
 fi
