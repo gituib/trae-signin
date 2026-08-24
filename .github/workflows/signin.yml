@@ -25,5 +25,7 @@ jobs:
       - name: 运行签到
         env:
           BARK_URL: ${{ secrets.BARK_URL }}
+          DINGTALK_WEBHOOK: ${{ secrets.DINGTALK_WEBHOOK }}
+          DINGTALK_SECRET: ${{ secrets.DINGTALK_SECRET }}
         run: |
           bash signin.sh
