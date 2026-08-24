@@ -1,0 +1,26 @@
+name: probe-usage
+on:
+  workflow_dispatch: {}
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 抓取 usage 结构
+        env:
+          AUTH: ${{ secrets.TRAE_AUTH_1 }}
+        run: |
+          TOKEN=$(python3 -c "import os,json;d=json.loads(os.environ['AUTH']);print(d['auth']['accessToken'])")
+          curl -s -X POST "https://api.trae.cn/trae/api/v2/pay/ide_user_ent_usage" \
+            -H 'Content-Type: application/json' \
+            -H 'Accept: application/json' \
+            -H 'User-Agent: Trae/0.1.43' \
+            -H 'X-User-Region: CN' \
+            -H "Authorization: Cloud-IDE-JWT $TOKEN" \
+            -d '{}' | python3 -c "
+import json,sys,base64
+d=json.load(sys.stdin)
+print('top_keys=', ','.join(d.keys()))
+for i,p in enumerate(d.get('user_entitlement_pack_list',[]),1):
+    u=p.get('usage') or {}
+    print('pack{} group={} usage_b64={}'.format(i,p.get('group_name'),base64.b64encode(json.dumps(u).encode()).decode()))
+"
