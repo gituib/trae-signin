@@ -27,5 +27,6 @@ jobs:
           BARK_URL: ${{ secrets.BARK_URL }}
           DINGTALK_WEBHOOK: ${{ secrets.DINGTALK_WEBHOOK }}
           DINGTALK_SECRET: ${{ secrets.DINGTALK_SECRET }}
+          TZ: Asia/Shanghai
         run: |
           bash signin.sh

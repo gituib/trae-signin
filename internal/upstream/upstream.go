@@ -150,10 +150,12 @@ func (c *Client) CheckinClaim(a *auth.Auth) error {
 	return err
 }
 
-// UserEntUsage 查询剩余积分（保留两位小数）。
-// 接口 field：user_entitlement_pack_list[].usage.credits_amount 为各权益包剩余积分，
-// quota.credits_limit 仅是权益额度上限，不可作为余额使用，需累加 usage.credits_amount。
-// 各包剩余需保留原始小数累加，最后统一四舍五入到两位小数，避免逐包取整丢失精度（如 UI 的 4855.36）。
+// UserEntUsage 查询剩余积分（保留两位小数），口径与官方 UI「总可用积分」一致。
+// 每个权益包：剩余 = entitlement_base_info.quota.credits_limit（额度上限）
+//            − usage.credits_amount（已消耗，缺失视为 0）。
+// 例：UI「503.97 / 2,000」即 2000 − 已消耗 1496.03。
+// 跳过已过期（expire_time 已过）与未生效（start_time 在未来）的包，
+// 单包剩余为负按 0 计，最后统一四舍五入到两位小数。
 func (c *Client) UserEntUsage(a *auth.Auth) (remain float64, err error) {
 	req, err := http.NewRequest(http.MethodPost, UgHost+EpEntUsage, bytes.NewReader([]byte("{}")))
 	if err != nil {
@@ -166,22 +168,36 @@ func (c *Client) UserEntUsage(a *auth.Auth) (remain float64, err error) {
 	}
 	var resp struct {
 		UserEntitlementPackList []struct {
-			Status int64 `json:"status"`
-			Usage  struct {
+			ExpireTime int64 `json:"expire_time"`
+			Usage      struct {
 				CreditsAmount float64 `json:"credits_amount"`
 			} `json:"usage"`
+			EntitlementBaseInfo struct {
+				StartTime int64 `json:"start_time"`
+				Quota     struct {
+					CreditsLimit float64 `json:"credits_limit"`
+				} `json:"quota"`
+			} `json:"entitlement_base_info"`
 		} `json:"user_entitlement_pack_list"`
 	}
 	if err := json.Unmarshal(data, &resp); err != nil {
 		return 0, fmt.Errorf("ent usage parse: %w", err)
 	}
-	// 仅累加已生效（status==0）且存在剩余数额的权益包，保留小数累加后统一取整到分
+	now := time.Now().Unix()
 	total := 0.0
 	for _, p := range resp.UserEntitlementPackList {
-		if p.Status != 0 {
+		// 已过期的权益包不计入
+		if p.ExpireTime > 0 && p.ExpireTime <= now {
 			continue
 		}
-		total += p.Usage.CreditsAmount
+		// 尚未生效的权益包不计入
+		if p.EntitlementBaseInfo.StartTime > 0 && p.EntitlementBaseInfo.StartTime > now {
+			continue
+		}
+		left := p.EntitlementBaseInfo.Quota.CreditsLimit - p.Usage.CreditsAmount
+		if left > 0 {
+			total += left
+		}
 	}
 	return math.Round(total*100) / 100, nil
 }
