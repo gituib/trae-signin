@@ -17,10 +17,22 @@ jobs:
 
       - name: 写入账号凭证
         env:
-          TRAE_AUTH: ${{ secrets.TRAE_AUTH_1 }}
+          TRAE_AUTH_1: ${{ secrets.TRAE_AUTH_1 }}
+          TRAE_AUTH_2: ${{ secrets.TRAE_AUTH_2 }}
+          TRAE_AUTH_3: ${{ secrets.TRAE_AUTH_3 }}
+          TRAE_AUTH_4: ${{ secrets.TRAE_AUTH_4 }}
+          TRAE_AUTH_5: ${{ secrets.TRAE_AUTH_5 }}
         run: |
           mkdir -p auths
-          printf '%s' "$TRAE_AUTH" > auths/trae-1.json
+          for i in 1 2 3 4 5; do
+            var="TRAE_AUTH_$i"
+            val="${!var}"
+            if [ -n "$val" ]; then
+              printf '%s' "$val" > "auths/trae-$i.json"
+              echo "✅ 已写入账号 $i"
+            fi
+          done
+          ls auths/
 
       - name: 运行签到
         env:
