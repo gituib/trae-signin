@@ -1,4 +1,5 @@
 name: TRAE 每日签到
+# 触发方式：schedule 定时 + workflow_dispatch 手动（用于强制刷新注册）
 
 on:
   schedule:
