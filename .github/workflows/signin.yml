@@ -3,6 +3,9 @@ on:
   schedule:
     - cron: '0 0 * * *'
   workflow_dispatch: {}
+  push:
+    branches:
+      - main
 jobs:
   signin:
     runs-on: ubuntu-latest
@@ -21,6 +24,10 @@ jobs:
         run: |
           mkdir -p auths
           printf '%s' "$TRAE_AUTH" > auths/trae-1.json
+
+      - name: 抓取完整积分接口（诊断用，待移除）
+        run: |
+          python3 -c 'import json,urllib.request as u;d=json.load(open("auths/trae-1.json"));tok=d["auth"]["accessToken"];h={"Content-Type":"application/json","Accept":"application/json","User-Agent":"Trae/0.1.43","X-User-Region":"CN","Authorization":"Cloud-IDE-JWT "+tok};f=lambda p:json.loads(u.urlopen(u.Request("https://api.trae.cn"+p,data=b"{}",method="POST",headers=h),timeout=20).read().decode());print("USAGEBEGIN");print(json.dumps(f("/trae/api/v2/pay/ide_user_ent_usage"),ensure_ascii=False));print("USAGEEND");print("STATUSBEGIN");print(json.dumps(f("/trae/api/v2/ug/checkin_credits/status"),ensure_ascii=False));print("STATUSEND")'
 
       - name: 执行签到并推送通知
         env:
