@@ -79,6 +79,23 @@ while IFS= read -r line; do
     esac
 done <<< "$SIGNIN_OUTPUT"
 
+# 提取失败详情（FAIL_DETAIL|昵称|原因），表格中详情列会被截断，
+# 此处解析标记行获取完整原因，附在通知末尾便于定位问题
+FAILS=""
+FAILS_MD=""
+while IFS= read -r line; do
+    case "$line" in
+        FAIL_DETAIL\|*)
+            IFS='|' read -r _ f_nick f_detail <<< "$line"
+            FAILS="${FAILS}❌ ${f_nick}: ${f_detail}
+"
+            FAILS_MD="${FAILS_MD}> ❌ **${f_nick}**: ${f_detail}
+
+"
+            ;;
+    esac
+done <<< "$SIGNIN_OUTPUT"
+
 # 构建 Bark 推送内容
 TITLE="TRAE 签到"
 if [ "$SIGNIN_EXIT" -eq 0 ]; then
@@ -102,6 +119,9 @@ ${SUMMARY}
 ${EXPIRING:+
 ⚠️ 积分即将过期
 ${EXPIRING}}
+${FAILS:+
+❌ 失败原因
+${FAILS}}
 ${ACCOUNTS}"
 
 # 发送 Bark 通知（经环境变量传值并剔除非法 surrogate，避免含 emoji 昵称触发 UnicodeEncodeError）
@@ -121,6 +141,10 @@ ${EXPIRING_MD:+
 **⚠️ 积分即将过期**
 
 ${EXPIRING_MD}}
+${FAILS_MD:+
+**❌ 失败原因**
+
+${FAILS_MD}}
 **👤 账号明细**
 
 ${ACCOUNTS_MD}"

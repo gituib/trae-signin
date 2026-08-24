@@ -139,15 +139,17 @@ func (c *Client) CheckinStatus(a *auth.Auth) (checkedIn bool, credits int64, ena
 	return resp.CheckedIn, resp.Credits, resp.Enable, nil
 }
 
-// CheckinClaim 执行签到。
-func (c *Client) CheckinClaim(a *auth.Auth) error {
+// CheckinClaim 执行签到，返回签到接口原始响应体。
+// 注意：HTTP 200 不代表业务成功（服务端可能返回 200 + 业务错误体），
+// 调用方必须解析响应体或二次查询签到状态来确认真正生效。
+func (c *Client) CheckinClaim(a *auth.Auth) ([]byte, error) {
 	req, err := http.NewRequest(http.MethodPost, UgHost+EpCheckinClaim, bytes.NewReader([]byte("{}")))
 	if err != nil {
-		return err
+		return nil, err
 	}
 	ugHeaders(req, a)
-	_, err = c.doJSON(req)
-	return err
+	data, err := c.doJSON(req)
+	return data, err
 }
 
 // ExpiringPack 即将过期的权益包信息。

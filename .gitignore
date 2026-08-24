@@ -3,6 +3,7 @@ auths/
 
 # 编译产物
 signin_bin
+signin_bin.exe
 scheduler
 
 # 日志

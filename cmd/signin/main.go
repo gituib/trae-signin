@@ -97,13 +97,28 @@ func main() {
 			r.detail = "签到已禁用"
 			failN++
 		default:
-			if err := up.CheckinClaim(a); err != nil {
+			claimResp, err := up.CheckinClaim(a)
+			switch {
+			case err != nil && isAlready(err.Error()):
+				r.status = "ALREADY"
+				r.detail = short(err.Error())
+				alreadyN++
+			case err != nil:
 				r.status = "FAIL"
 				r.detail = short(err.Error())
 				failN++
-			} else {
-				r.status = "✅ OK"
-				okN++
+			default:
+				// 二次验证：claim 返回 HTTP 200 不代表业务成功，
+				// 重新查询签到状态确认 checked_in 真正生效
+				fmt.Printf("   📨 %s claim 响应: %s\n", r.uid, truncateBody(string(claimResp)))
+				if verified, vdetail := verifyCheckin(up, a); verified {
+					r.status = "✅ OK"
+					okN++
+				} else {
+					r.status = "FAIL"
+					r.detail = vdetail + "｜响应: " + short(string(claimResp))
+					failN++
+				}
 			}
 		}
 
@@ -139,6 +154,13 @@ func main() {
 				time.Unix(p.ExpireAt, 0).Format("2006-01-02 15:04"))
 		}
 	}
+
+	// 输出失败详情完整内容（表格中详情列会被截断，供 signin.sh 解析进通知）
+	for _, r := range rows {
+		if strings.Contains(r.status, "FAIL") && r.detail != "" {
+			fmt.Printf("FAIL_DETAIL|%s|%s\n", trunc(r.nick, 13), r.detail)
+		}
+	}
 }
 
 func isAlready(msg string) bool {
@@ -146,6 +168,39 @@ func isAlready(msg string) bool {
 	return strings.Contains(s, "已签到") ||
 		strings.Contains(s, "already check") ||
 		strings.Contains(s, "already checked")
+}
+
+// verifyCheckin 二次验证签到是否真正生效：claim 接口返回 HTTP 200 不代表业务成功，
+// 需重新查询签到状态，确认 checked_in 已变为 true 才认定签到成功。
+// 最多查询 3 次（首次等 1 秒，之后每次间隔 2 秒），
+// 全部查询均为"未签到"才判定失败，规避服务端状态落库延迟导致的误判。
+func verifyCheckin(up *upstream.Client, a *auth.Auth) (bool, string) {
+	for i := 0; i < 3; i++ {
+		if i == 0 {
+			time.Sleep(1 * time.Second)
+		} else {
+			time.Sleep(2 * time.Second)
+			fmt.Printf("   🔁 %s 签到状态尚未生效，正在重查（第 %d 次）...\n", a.UID, i+1)
+		}
+		checked, _, _, verr := up.CheckinStatus(a)
+		if verr != nil {
+			continue // 查询出错，继续重试
+		}
+		if checked {
+			return true, ""
+		}
+		// 查到未签到：可能是落库延迟，继续重试
+	}
+	return false, "签到未生效（claim 后多次查询仍为未签到）"
+}
+
+// truncateBody 截断响应体到指定长度，用于日志输出，避免刷屏。
+func truncateBody(s string) string {
+	s = strings.ReplaceAll(strings.TrimSpace(s), "\n", " ")
+	if len(s) > 300 {
+		return s[:300] + "..."
+	}
+	return s
 }
 
 func trunc(s string, n int) string {
