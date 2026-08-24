@@ -25,6 +25,9 @@ const (
 	EpCheckinStatus = "/trae/api/v2/ug/checkin_credits/status"
 	EpCheckinClaim  = "/trae/api/v2/ug/checkin_credits/claim"
 	EpEntUsage      = "/trae/api/v2/pay/ide_user_ent_usage"
+
+	// ClaimCodeBusy 签到接口业务码：当前参与用户太多（服务端拥堵，退避重试可恢复）
+	ClaimCodeBusy = 9074
 )
 
 var clientUA = "Trae/" + IdeVersion
@@ -139,9 +142,36 @@ func (c *Client) CheckinStatus(a *auth.Auth) (checkedIn bool, credits int64, ena
 	return resp.CheckedIn, resp.Credits, resp.Enable, nil
 }
 
-// CheckinClaim 执行签到，返回签到接口原始响应体。
-// 注意：HTTP 200 不代表业务成功（服务端可能返回 200 + 业务错误体），
-// 调用方必须解析响应体或二次查询签到状态来确认真正生效。
+// ClaimBizError 签到接口业务错误：HTTP 200 但响应体 code 非 0。
+type ClaimBizError struct {
+	Code    int    // 业务错误码（如 9074 拥堵）
+	Message string // 服务端错误信息
+}
+
+// Error 实现 error 接口，输出业务码与信息。
+func (e *ClaimBizError) Error() string {
+	return fmt.Sprintf("code %d: %s", e.Code, e.Message)
+}
+
+// parseClaimBizErr 解析签到响应体中的业务错误。
+// code 缺失或为 0 视为业务成功返回 nil；非法 JSON 同样返回 nil，交由二次验证兜底。
+func parseClaimBizErr(data []byte) error {
+	var resp struct {
+		Code    int    `json:"code"`
+		Message string `json:"message"`
+	}
+	if err := json.Unmarshal(data, &resp); err != nil {
+		return nil
+	}
+	if resp.Code != 0 {
+		return &ClaimBizError{Code: resp.Code, Message: resp.Message}
+	}
+	return nil
+}
+
+// CheckinClaim 执行签到，返回响应体原文。
+// HTTP 层错误返回普通 error；业务失败（HTTP 200 + code 非 0）返回 *ClaimBizError，
+// 调用方可用 errors.As 判断是否为可重试的拥堵错误（ClaimCodeBusy）。
 func (c *Client) CheckinClaim(a *auth.Auth) ([]byte, error) {
 	req, err := http.NewRequest(http.MethodPost, UgHost+EpCheckinClaim, bytes.NewReader([]byte("{}")))
 	if err != nil {
@@ -149,7 +179,10 @@ func (c *Client) CheckinClaim(a *auth.Auth) ([]byte, error) {
 	}
 	ugHeaders(req, a)
 	data, err := c.doJSON(req)
-	return data, err
+	if err != nil {
+		return data, err
+	}
+	return data, parseClaimBizErr(data)
 }
 
 // ExpiringPack 即将过期的权益包信息。
