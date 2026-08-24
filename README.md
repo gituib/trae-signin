@@ -14,6 +14,7 @@ TRAE Work (SOLO CN) 的轻量签到工具。只做三件事：**登录 → 签�
 | **签到** | 批量遍历 `auths/` 下所有账号，自动刷新过期 token，逐个签到 |
 | **积分查询** | 签到同时查询每个账号的积分余额 |
 | **Bark 通知** | 签到完成后自动推送到 Bark（iOS 通知） |
+| **钉钉通知** | 签到完成后自动推送到钉钉群机器人（支持加签） |
 | **定时签到** | 内置调度器，每天定时执行 |
 
 ## 快速开始
@@ -52,6 +53,30 @@ export BARK_URL="https://api.day.app/你的Key"
 > 总计1 | 成功1 | 已签0 | 失败0
 > 弎水 ✅ OK 积分5100
 
+## 钉钉通知配置
+
+签到完成后自动推送到钉钉群机器人（自定义机器人 Webhook，支持加签安全设置）。
+
+**配置步骤：**
+
+1. 在钉钉群中添加「自定义机器人」，获取 Webhook 地址（形如 `https://oapi.dingtalk.com/robot/send?access_token=xxx`）
+2. 安全设置选择「加签」，复制加签密钥（Secret）
+3. 通过环境变量配置：
+
+```bash
+export DINGTALK_WEBHOOK="https://oapi.dingtalk.com/robot/send?access_token=你的Token"
+export DINGTALK_SECRET="你的加签密钥"
+./signin.sh
+```
+
+> 若机器人未开启加签，`DINGTALK_SECRET` 可留空，仅配置 `DINGTALK_WEBHOOK` 即可。
+
+推送内容示例（markdown 格式）：
+
+> **✅ TRAE 签到成功**
+> **总计** 1 | **成功** 1 | **已签** 0 | **失败** 0
+> 弎水 ✅ OK 积分5100
+
 ## 定时签到
 
 ### 方式一：GitHub Actions（推荐）
@@ -68,7 +93,9 @@ export BARK_URL="https://api.day.app/你的Key"
    |---|---|---|
    | `TRAE_AUTH_1` | 账号1 的完整凭证 JSON | `auths/trae-*.json` 的文件内容 |
    | `TRAE_AUTH_2` | 账号2 的完整凭证 JSON | 同上，多个账号依次添加 |
-   | `BARK_URL` | `https://api.day.app/你的Key` | Bark 推送地址 |
+   | `BARK_URL` | `https://api.day.app/你的Key` | Bark 推送地址（可选） |
+   | `DINGTALK_WEBHOOK` | `https://oapi.dingtalk.com/robot/send?access_token=你的Token` | 钉钉机器人 Webhook（可选） |
+   | `DINGTALK_SECRET` | 你的加签密钥 | 钉钉机器人加签密钥（可选，未加签可留空） |
 
 3. 每天北京时间 08:00 自动执行，也可在 Actions 页面手动触发
 
