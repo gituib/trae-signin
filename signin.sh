@@ -22,15 +22,24 @@ OK=$(echo "$SIGNIN_OUTPUT" | grep -oP '签到成功=\K\d+' || echo "?")
 ALREADY=$(echo "$SIGNIN_OUTPUT" | grep -oP '已签=\K\d+' || echo "?")
 FAIL=$(echo "$SIGNIN_OUTPUT" | grep -oP '失败=\K\d+' || echo "?")
 
-# 提取每个账号的信息
+# 提取每个账号的信息（纯文本版给 Bark，markdown 版给钉钉）
 ACCOUNTS=""
+ACCOUNTS_MD=""
 while IFS= read -r line; do
     if echo "$line" | grep -qP '│\s+\d+'; then
-        uid=$(echo "$line" | sed 's/│/\n/g' | sed -n '2p' | xargs)
         nick=$(echo "$line" | sed 's/│/\n/g' | sed -n '3p' | xargs)
         status=$(echo "$line" | sed 's/│/\n/g' | sed -n '4p' | xargs)
         credits=$(echo "$line" | sed 's/│/\n/g' | sed -n '5p' | xargs)
-        ACCOUNTS="${ACCOUNTS}${nick} ${status} 积分${credits}\n"
+        # 状态码映射为中文，提升可读性
+        case "$status" in
+            *OK*)       status_cn="✅ 签到成功" ;;
+            *ALREADY*)  status_cn="🟡 今日已签" ;;
+            *FAIL*)     status_cn="❌ 签到失败" ;;
+            *LOAD_ERR*) status_cn="⚠️ 读取失败" ;;
+            *)          status_cn="$status" ;;
+        esac
+        ACCOUNTS="${ACCOUNTS}${nick} ${status_cn} 积分${credits}\n"
+        ACCOUNTS_MD="${ACCOUNTS_MD}* ${nick}　${status_cn}　积分：**${credits}**\n"
     fi
 done <<< "$SIGNIN_OUTPUT"
 
@@ -58,7 +67,7 @@ echo "📲 Bark 通知已发送"
 # 发送钉钉通知（配置了 DINGTALK_WEBHOOK 时启用）
 if [ -n "$DINGTALK_WEBHOOK" ]; then
     # 构造钉钉 markdown 消息内容
-    DING_BODY="### ${TITLE}\n\n**总计** ${TOTAL} | **成功** ${OK} | **已签** ${ALREADY} | **失败** ${FAIL}\n\n${ACCOUNTS}"
+    DING_BODY="#### ${TITLE}\n\n> **总计** ${TOTAL} ｜ **成功** ${OK} ｜ **已签** ${ALREADY} ｜ **失败** ${FAIL}\n\n${ACCOUNTS_MD}"
     # 生成加签参数（timestamp + secret 的 HmacSHA256 签名）
     DING_PARAMS=$(DINGTALK_SECRET="$DINGTALK_SECRET" python3 - <<'PYEOF'
 import base64, hashlib, hmac, os, time, urllib.parse
