@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"math"
 	"net/http"
 	"strings"
 	"time"
@@ -149,7 +150,9 @@ func (c *Client) CheckinClaim(a *auth.Auth) error {
 	return err
 }
 
-// UserEntUsage 查询积分余额。
+// UserEntUsage 查询剩余积分。
+// 接口 field：user_entitlement_pack_list[].usage.credits_amount 为各权益包剩余积分，
+// quota.credits_limit 仅是权益额度上限，不可作为余额使用，需累加 usage.credits_amount。
 func (c *Client) UserEntUsage(a *auth.Auth) (remain int64, err error) {
 	req, err := http.NewRequest(http.MethodPost, UgHost+EpEntUsage, bytes.NewReader([]byte("{}")))
 	if err != nil {
@@ -162,18 +165,21 @@ func (c *Client) UserEntUsage(a *auth.Auth) (remain int64, err error) {
 	}
 	var resp struct {
 		UserEntitlementPackList []struct {
-			EntitlementBaseInfo struct {
-				Quota struct {
-					CreditsLimit int64 `json:"credits_limit"`
-				} `json:"quota"`
-			} `json:"entitlement_base_info"`
+			Status int64 `json:"status"`
+			Usage  struct {
+				CreditsAmount float64 `json:"credits_amount"`
+			} `json:"usage"`
 		} `json:"user_entitlement_pack_list"`
 	}
 	if err := json.Unmarshal(data, &resp); err != nil {
 		return 0, fmt.Errorf("ent usage parse: %w", err)
 	}
+	// 仅累加已生效（status==0）且存在剩余数额的权益包
 	for _, p := range resp.UserEntitlementPackList {
-		remain += p.EntitlementBaseInfo.Quota.CreditsLimit
+		if p.Status != 0 {
+			continue
+		}
+		remain += int64(math.Round(p.Usage.CreditsAmount))
 	}
 	return remain, nil
 }

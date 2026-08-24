@@ -139,8 +139,10 @@ func isAlready(msg string) bool {
 }
 
 func trunc(s string, n int) string {
-	if len(s) > n {
-		return s[:n]
+	// 按 rune 截断，避免按字节截断多字节中文字符产生乱码("?")
+	r := []rune(s)
+	if len(r) > n {
+		return string(r[:n])
 	}
 	return s
 }

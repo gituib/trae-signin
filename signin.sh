@@ -57,7 +57,7 @@ else
     TITLE="❌ TRAE 签到失败"
 fi
 
-BODY="总计${TOTAL} | 成功${OK} | 已签${ALREADY} | 失败${FAIL}\n${ACCOUNTS}"
+BODY="🕒 $(date '+%m-%d %H:%M')\n📊 总计 ${TOTAL} ｜ 成功 ${OK} ｜ 已签 ${ALREADY} ｜ 失败 ${FAIL}\n\n${ACCOUNTS}"
 
 # 发送 Bark 通知（经环境变量传值并剔除非法 surrogate，避免含 emoji 昵称触发 UnicodeEncodeError）
 curl -s -X POST "$BARK_URL/$(TITLE="$TITLE" python3 -c "import os,urllib.parse; s=os.environ['TITLE'].encode('utf-8','replace').decode('utf-8'); print(urllib.parse.quote(s, safe=''))")/$(BODY="$BODY" python3 -c "import os,urllib.parse; s=os.environ['BODY'].encode('utf-8','replace').decode('utf-8'); print(urllib.parse.quote(s, safe=''))")" > /dev/null 2>&1 || true
@@ -67,7 +67,7 @@ echo "📲 Bark 通知已发送"
 # 发送钉钉通知（配置了 DINGTALK_WEBHOOK 时启用）
 if [ -n "$DINGTALK_WEBHOOK" ]; then
     # 构造钉钉 markdown 消息内容
-    DING_BODY="#### ${TITLE}\n\n> **总计** ${TOTAL} ｜ **成功** ${OK} ｜ **已签** ${ALREADY} ｜ **失败** ${FAIL}\n\n${ACCOUNTS_MD}"
+    DING_BODY="#### ${TITLE}\n\n🕒 $(date '+%m-%d %H:%M')\n\n> **总计** ${TOTAL} ｜ **成功** ${OK} ｜ **已签** ${ALREADY} ｜ **失败** ${FAIL}\n\n${ACCOUNTS_MD}"
     # 生成加签参数（timestamp + secret 的 HmacSHA256 签名）
     DING_PARAMS=$(DINGTALK_SECRET="$DINGTALK_SECRET" python3 - <<'PYEOF'
 import base64, hashlib, hmac, os, time, urllib.parse
