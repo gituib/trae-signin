@@ -18,20 +18,16 @@ jobs:
             -H 'X-User-Region: CN' \
             -H "Authorization: Cloud-IDE-JWT $TOKEN" \
             -d '{}' | python3 -c "
-import json,sys
+import json,sys,base64
 d=json.load(sys.stdin)
 n=0
 for p in d.get('user_entitlement_pack_list',[]):
     n+=1
     limit=(p.get('entitlement_base_info') or {}).get('quota',{}).get('credits_limit')
-    u=p.get('usage')
-    if isinstance(u,dict):
-        info=' '.join('{}={}'.format(k,v) for k,v in u.items() if not isinstance(v,(dict,list)))
-    else:
-        info='type={}'.format(type(u).__name__)
-    print('pack{} group={} limit={}'.format(n,p.get('group_name'),limit))
-    print('    usage: {}'.format(info))
-print('total_packs=',n, 'top_keys=', list(d.keys()))
+    u=p.get('usage') or {}
+    ub=base64.b64encode(json.dumps(u).encode()).decode() if isinstance(u,(dict,list)) else ''
+    print('pack{} group={} limit={} usage_b64={}'.format(n,p.get('group_name'),limit,ub))
+print('total_packs=',n,' top_keys=',','.join(d.keys()))
 "
           echo "===== checkin_credits/status ====="
           curl -s -X POST "https://api.trae.cn/trae/api/v2/ug/checkin_credits/status" \
