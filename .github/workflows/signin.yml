@@ -3,9 +3,6 @@ on:
   schedule:
     - cron: '0 0 * * *'
   workflow_dispatch: {}
-  push:
-    branches:
-      - main
 jobs:
   signin:
     runs-on: ubuntu-latest
@@ -25,10 +22,8 @@ jobs:
           mkdir -p auths
           printf '%s' "$TRAE_AUTH" > auths/trae-1.json
 
-      - name: 诊断·抓每包完整结构
+      - name: 运行签到
+        env:
+          BARK_URL: ${{ secrets.BARK_URL }}
         run: |
-          python3 -c 'import json,base64 as b,urllib.request as u;t=json.load(open("auths/trae-1.json"))["auth"]["accessToken"];H={"Content-Type":"application/json","Accept":"application/json","User-Agent":"Trae/0.1.43","X-User-Region":"CN","Authorization":"Cloud-IDE-JWT "+t};d=json.loads(u.urlopen(u.Request("https://api.trae.cn/trae/api/v2/pay/ide_user_ent_usage",data=b"{}",method="POST",headers=H),timeout=20).read().decode());print("TOP","|".join(d.keys()));[print("PACK%d"%i,b.b64encode(json.dumps(p,ensure_ascii=False).encode()).decode()) for i,p in enumerate(d.get("user_entitlement_pack_list") or [],1)]'
-
-      - name: 诊断·checkin状态
-        run: |
-          python3 -c 'import json,base64 as b,urllib.request as u;t=json.load(open("auths/trae-1.json"))["auth"]["accessToken"];H={"Content-Type":"application/json","Accept":"application/json","User-Agent":"Trae/0.1.43","X-User-Region":"CN","Authorization":"Cloud-IDE-JWT "+t};d=json.loads(u.urlopen(u.Request("https://api.trae.cn/trae/api/v2/ug/checkin_credits/status",data=b"{}",method="POST",headers=H),timeout=20).read().decode());print("CHECKIN",b.b64encode(json.dumps(d,ensure_ascii=False).encode()).decode())'
+          bash signin.sh

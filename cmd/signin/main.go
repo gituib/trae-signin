@@ -20,7 +20,7 @@ type row struct {
 	nick   string
 	status string
 	detail string
-	remain int64
+	remain float64
 	hasRem bool
 }
 
@@ -121,7 +121,7 @@ func main() {
 	for _, r := range rows {
 		remain := "-"
 		if r.hasRem {
-			remain = fmt.Sprintf("%d", r.remain)
+			remain = fmt.Sprintf("%.2f", r.remain)
 		}
 		fmt.Printf("│ %-36s │ %-13s │ %-12s │ %-8s │ %-36s │\n",
 			trunc(r.uid, 36), trunc(r.nick, 13), r.status, remain, trunc(r.detail, 36))

@@ -150,10 +150,11 @@ func (c *Client) CheckinClaim(a *auth.Auth) error {
 	return err
 }
 
-// UserEntUsage 查询剩余积分。
+// UserEntUsage 查询剩余积分（保留两位小数）。
 // 接口 field：user_entitlement_pack_list[].usage.credits_amount 为各权益包剩余积分，
 // quota.credits_limit 仅是权益额度上限，不可作为余额使用，需累加 usage.credits_amount。
-func (c *Client) UserEntUsage(a *auth.Auth) (remain int64, err error) {
+// 各包剩余需保留原始小数累加，最后统一四舍五入到两位小数，避免逐包取整丢失精度（如 UI 的 4855.36）。
+func (c *Client) UserEntUsage(a *auth.Auth) (remain float64, err error) {
 	req, err := http.NewRequest(http.MethodPost, UgHost+EpEntUsage, bytes.NewReader([]byte("{}")))
 	if err != nil {
 		return 0, err
@@ -174,14 +175,15 @@ func (c *Client) UserEntUsage(a *auth.Auth) (remain int64, err error) {
 	if err := json.Unmarshal(data, &resp); err != nil {
 		return 0, fmt.Errorf("ent usage parse: %w", err)
 	}
-	// 仅累加已生效（status==0）且存在剩余数额的权益包
+	// 仅累加已生效（status==0）且存在剩余数额的权益包，保留小数累加后统一取整到分
+	total := 0.0
 	for _, p := range resp.UserEntitlementPackList {
 		if p.Status != 0 {
 			continue
 		}
-		remain += int64(math.Round(p.Usage.CreditsAmount))
+		total += p.Usage.CreditsAmount
 	}
-	return remain, nil
+	return math.Round(total*100) / 100, nil
 }
 
 func ugHeaders(req *http.Request, a *auth.Auth) {
